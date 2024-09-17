@@ -14,10 +14,27 @@
             color: white;
             font-family: Arial, sans-serif;
         }
+        #forceMeter {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 200px;
+            height: 20px;
+            background-color: #333;
+            border: 2px solid white;
+        }
+        #forceFill {
+            height: 100%;
+            width: 0%;
+            background-color: red;
+            transition: width 0.1s;
+        }
     </style>
 </head>
 <body>
-    <div id="info">Use arrow keys to move, mouse to look, and spacebar to hit the ball</div>
+    <div id="info">Use arrow keys to move, mouse to look. Hold spacebar to charge, release to hit the ball</div>
+    <div id="forceMeter"><div id="forceFill"></div></div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script>
         // Set up the scene, camera, and renderer
@@ -61,6 +78,13 @@
         let moveRight = false;
         let canMove = true;
 
+        // Variables for force meter and swing
+        let isCharging = false;
+        let chargeStartTime = 0;
+        const maxChargeTime = 3000; // 3 seconds for max charge
+        const minForce = 0.2;
+        const maxForce = 1.5;
+
         // Event listeners for keyboard controls
         document.addEventListener('keydown', onKeyDown);
         document.addEventListener('keyup', onKeyUp);
@@ -84,7 +108,10 @@
                     moveRight = true;
                     break;
                 case 'Space':
-                    hitBall();
+                    if (!isCharging && canMove) {
+                        isCharging = true;
+                        chargeStartTime = Date.now();
+                    }
                     break;
             }
         }
@@ -107,6 +134,12 @@
                 case 'KeyD':
                     moveRight = false;
                     break;
+                case 'Space':
+                    if (isCharging) {
+                        isCharging = false;
+                        hitBall();
+                    }
+                    break;
             }
         }
 
@@ -124,10 +157,15 @@
 
         function hitBall() {
             if (canMove) {
+                const chargeTime = Math.min(Date.now() - chargeStartTime, maxChargeTime);
+                const force = minForce + (maxForce - minForce) * (chargeTime / maxChargeTime);
+                
                 const direction = new THREE.Vector3(0, 0, -1);
                 direction.applyQuaternion(camera.quaternion);
-                const force = 0.5;
+                
                 const velocity = direction.multiplyScalar(force);
+                velocity.y = force * 0.5; // Add vertical component for arc
+                
                 animateBall(velocity);
                 canMove = false;
             }
@@ -147,6 +185,7 @@
                 if (ball.position.y <= 0.1) {
                     ball.position.y = 0.1;
                     velocity.multiplyScalar(0.8); // Reduce velocity on bounce
+                    velocity.y = Math.abs(velocity.y) * 0.5; // Bounce effect
                     t = 0;
                 }
 
@@ -189,6 +228,15 @@
 
                 // Ensure camera stays above ground
                 camera.position.y = 1.6;
+            }
+
+            // Update force meter
+            if (isCharging) {
+                const chargeTime = Math.min(Date.now() - chargeStartTime, maxChargeTime);
+                const chargePercentage = (chargeTime / maxChargeTime) * 100;
+                document.getElementById('forceFill').style.width = `${chargePercentage}%`;
+            } else {
+                document.getElementById('forceFill').style.width = '0%';
             }
 
             renderer.render(scene, camera);
