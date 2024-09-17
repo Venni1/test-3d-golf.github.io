@@ -158,7 +158,7 @@
         function hitBall() {
             if (canMove) {
                 const chargeTime = Math.min(Date.now() - chargeStartTime, maxChargeTime);
-                const force = minForce + (maxForce - minForce) * (chargeTime / maxChargeTime);
+                const force = (minForce + (maxForce - minForce) * (chargeTime / maxChargeTime)) * 4;
                 
                 const direction = new THREE.Vector3(0, 0, -1);
                 direction.applyQuaternion(camera.quaternion);
