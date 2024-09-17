@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>First-Person 3D Golf Game</title>
+    <style>
+        body { margin: 0; overflow: hidden; }
+        canvas { display: block; }
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            font-family: Arial, sans-serif;
+        }
+    </style>
+</head>
+<body>
+    <div id="info">Use arrow keys to move, mouse to look, and spacebar to hit the ball</div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        // Set up the scene, camera, and renderer
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // Create the ground
+        const groundGeometry = new THREE.PlaneGeometry(100, 100);
+        const groundMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+        ground.rotation.x = -Math.PI / 2;
+        scene.add(ground);
+
+        // Create the golf ball
+        const ballGeometry = new THREE.SphereGeometry(0.1, 32, 32);
+        const ballMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
+        const ball = new THREE.Mesh(ballGeometry, ballMaterial);
+        ball.position.set(0, 0.1, -1);
+        scene.add(ball);
+
+        // Create the hole
+        const holeGeometry = new THREE.CircleGeometry(0.2, 32);
+        const holeMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 });
+        const hole = new THREE.Mesh(holeGeometry, holeMaterial);
+        hole.position.set(5, 0.01, 5);
+        hole.rotation.x = -Math.PI / 2;
+        scene.add(hole);
+
+        // Set up the camera
+        camera.position.set(0, 1.6, 0);
+
+        // Variables for player movement and looking
+        const moveSpeed = 0.1;
+        const lookSpeed = 0.002;
+        let moveForward = false;
+        let moveBackward = false;
+        let moveLeft = false;
+        let moveRight = false;
+        let canMove = true;
+
+        // Event listeners for keyboard controls
+        document.addEventListener('keydown', onKeyDown);
+        document.addEventListener('keyup', onKeyUp);
+
+        function onKeyDown(event) {
+            switch (event.code) {
+                case 'ArrowUp':
+                case 'KeyW':
+                    moveForward = true;
+                    break;
+                case 'ArrowLeft':
+                case 'KeyA':
+                    moveLeft = true;
+                    break;
+                case 'ArrowDown':
+                case 'KeyS':
+                    moveBackward = true;
+                    break;
+                case 'ArrowRight':
+                case 'KeyD':
+                    moveRight = true;
+                    break;
+                case 'Space':
+                    hitBall();
+                    break;
+            }
+        }
+
+        function onKeyUp(event) {
+            switch (event.code) {
+                case 'ArrowUp':
+                case 'KeyW':
+                    moveForward = false;
+                    break;
+                case 'ArrowLeft':
+                case 'KeyA':
+                    moveLeft = false;
+                    break;
+                case 'ArrowDown':
+                case 'KeyS':
+                    moveBackward = false;
+                    break;
+                case 'ArrowRight':
+                case 'KeyD':
+                    moveRight = false;
+                    break;
+            }
+        }
+
+        // Mouse look controls
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('click', () => document.body.requestPointerLock());
+
+        function onMouseMove(event) {
+            if (document.pointerLockElement === document.body) {
+                camera.rotation.y -= event.movementX * lookSpeed;
+                camera.rotation.x -= event.movementY * lookSpeed;
+                camera.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, camera.rotation.x));
+            }
+        }
+
+        function hitBall() {
+            if (canMove) {
+                const direction = new THREE.Vector3(0, 0, -1);
+                direction.applyQuaternion(camera.quaternion);
+                const force = 0.5;
+                const velocity = direction.multiplyScalar(force);
+                animateBall(velocity);
+                canMove = false;
+            }
+        }
+
+        function animateBall(velocity) {
+            const gravity = -9.8;
+            const dt = 1 / 60; // 60 FPS
+            let t = 0;
+
+            function updateBallPosition() {
+                t += dt;
+                ball.position.x += velocity.x * dt;
+                ball.position.z += velocity.z * dt;
+                ball.position.y += (velocity.y + gravity * t) * dt;
+
+                if (ball.position.y <= 0.1) {
+                    ball.position.y = 0.1;
+                    velocity.multiplyScalar(0.8); // Reduce velocity on bounce
+                    t = 0;
+                }
+
+                // Check if the ball is in the hole
+                if (ball.position.distanceTo(hole.position) < 0.2) {
+                    alert("You win!");
+                    resetBall();
+                    return;
+                }
+
+                if (velocity.length() > 0.01) {
+                    requestAnimationFrame(updateBallPosition);
+                } else {
+                    canMove = true;
+                }
+            }
+
+            updateBallPosition();
+        }
+
+        function resetBall() {
+            ball.position.set(camera.position.x, 0.1, camera.position.z - 1);
+            canMove = true;
+        }
+
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+
+            if (canMove) {
+                // Update camera position based on key presses
+                const direction = new THREE.Vector3();
+                const rotation = camera.rotation.clone();
+                rotation.x = 0; // Ignore vertical rotation for movement
+                direction.z = Number(moveForward) - Number(moveBackward);
+                direction.x = Number(moveRight) - Number(moveLeft);
+                direction.normalize();
+                direction.applyEuler(rotation);
+                camera.position.addScaledVector(direction, moveSpeed);
+
+                // Ensure camera stays above ground
+                camera.position.y = 1.6;
+            }
+
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        // Handle window resizing
+        window.addEventListener('resize', onWindowResize, false);
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+    </script>
+</body>
+</html>
